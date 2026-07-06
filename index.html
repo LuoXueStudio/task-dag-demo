@@ -107,18 +107,10 @@ body { font-family: var(--font); background: var(--bg-base); color: var(--text-p
 
 <div class="dag-container" id="dagContainer">
   <div class="dag-npc-selector">
-    <div class="dag-selector-group">
-      <span class="dag-selector-label">NPC</span>
-      <button class="npc-btn active" data-npc="0">徐图</button>
-      <button class="npc-btn" data-npc="1">老赵</button>
-      <button class="npc-btn" data-npc="2">大女士</button>
-      <button class="npc-btn" data-npc="3">凝凝</button>
-    </div>
-    <div class="dag-selector-divider"></div>
-    <div class="dag-selector-group">
-      <span class="dag-selector-label">4条线同屏</span>
-      <span style="font-size:11px;color:var(--text-muted);padding:4px 8px;">线1-线4</span>
-    </div>
+    <button class="npc-btn active" data-npc="0">徐图</button>
+    <button class="npc-btn" data-npc="1">老赵</button>
+    <button class="npc-btn" data-npc="2">大女士</button>
+    <button class="npc-btn" data-npc="3">凝凝</button>
   </div>
   <div class="dag-toolbar">
     <button class="dag-tool-btn" onclick="dagZoom(1.2)" title="放大">+</button>
@@ -145,7 +137,6 @@ body { font-family: var(--font); background: var(--bg-base); color: var(--text-p
     <div class="legend-item"><div class="legend-box" style="border:2.5px solid #e8eaed;background:#252830;">▶</div>进行中</div>
     <div class="legend-item"><div class="legend-box" style="border:1.5px dashed #7a7f8b;background:#1a1d24;">○</div>可接取</div>
     <div class="legend-item"><div class="legend-box" style="border:1px dotted #4a5060;background:#15171c;opacity:0.6;">?</div>未解锁</div>
-    <div class="legend-item" style="border-left:1px solid var(--border);padding-left:10px;">4层 × 4线同屏 · 60节点/NPC</div>
   </div>
   <div class="dag-info-panel" id="dagInfoPanel">
     <h4 id="dagInfoTitle"></h4>
@@ -436,14 +427,30 @@ const dagContainer = document.getElementById('dagContainer');
 const dagTransform = document.getElementById('dagTransform');
 let isDragging = false;
 let dragStartX = 0, dragStartY = 0;
-let basePanX = 60, basePanY = 30;
+let basePanX = 80, basePanY = 40;
+
+const MIN_SCALE = 0.5;
+const MAX_SCALE = 2.0;
+const PAN_MARGIN = 300;
+
+function clampPan() {
+  const cw = dagContainer.clientWidth;
+  const ch = dagContainer.clientHeight;
+  const treeW = (TREE_W + 140) * dagScale;
+  const treeH = (ALL_LINES_H + 60) * dagScale;
+  const maxX = Math.max(0, (treeW - cw) / 2 + PAN_MARGIN);
+  const maxY = Math.max(0, (treeH - ch) / 2 + PAN_MARGIN);
+  dagPanX = Math.max(-maxX, Math.min(maxX, dagPanX));
+  dagPanY = Math.max(-maxY, Math.min(maxY, dagPanY));
+}
 
 function updateDagTransform() {
+  clampPan();
   dagTransform.setAttribute('transform', `translate(${basePanX + dagPanX}, ${basePanY + dagPanY}) scale(${dagScale})`);
 }
 
 dagContainer.addEventListener('mousedown', (e) => {
-  if (e.target.closest('.dag-tool-btn') || e.target.closest('.npc-btn') || e.target.closest('.dag-info-panel') || e.target.closest('.dag-selector-group')) return;
+  if (e.target.closest('.dag-tool-btn') || e.target.closest('.npc-btn') || e.target.closest('.dag-info-panel')) return;
   isDragging = true;
   dragStartX = e.clientX - dagPanX;
   dragStartY = e.clientY - dagPanY;
@@ -465,7 +472,7 @@ document.addEventListener('mouseup', () => {
 dagContainer.addEventListener('wheel', (e) => {
   e.preventDefault();
   const delta = e.deltaY > 0 ? 0.9 : 1.1;
-  dagScale = Math.max(0.1, Math.min(4, dagScale * delta));
+  dagScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, dagScale * delta));
   updateDagTransform();
 });
 
@@ -498,7 +505,7 @@ dagContainer.addEventListener('touchmove', (e) => {
     const dx = e.touches[0].clientX - e.touches[1].clientX;
     const dy = e.touches[0].clientY - e.touches[1].clientY;
     const dist = Math.sqrt(dx * dx + dy * dy);
-    dagScale = Math.max(0.1, Math.min(4, touchStartScale * (dist / touchStartDist)));
+    dagScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, touchStartScale * (dist / touchStartDist)));
     updateDagTransform();
   }
 });
@@ -508,7 +515,7 @@ dagContainer.addEventListener('touchend', () => {
 });
 
 function dagZoom(factor) {
-  dagScale = Math.max(0.1, Math.min(4, dagScale * factor));
+  dagScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, dagScale * factor));
   updateDagTransform();
 }
 
@@ -519,11 +526,11 @@ function dagFit() {
   const treeFullH = ALL_LINES_H + 60;
   const scaleW = (containerWidth - 40) / treeFullW;
   const scaleH = (containerHeight - 40) / treeFullH;
-  dagScale = Math.max(0.1, Math.min(1.5, Math.min(scaleW, scaleH)));
+  dagScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, Math.min(scaleW, scaleH)));
   dagPanX = 0;
   dagPanY = 0;
-  basePanX = 40;
-  basePanY = 20;
+  basePanX = 80;
+  basePanY = 40;
   updateDagTransform();
 }
 
@@ -531,8 +538,8 @@ function dagReset() {
   dagScale = 1;
   dagPanX = 0;
   dagPanY = 0;
-  basePanX = 60;
-  basePanY = 30;
+  basePanX = 80;
+  basePanY = 40;
   selectedNode = null;
   document.getElementById('dagInfoPanel').classList.remove('show');
   updateDagTransform();
