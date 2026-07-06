@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>任务线可视化 — 交互式DAG</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg-base: #0f1115;
+  --bg-card: #1a1d24;
+  --bg-elevated: #252830;
+  --bg-hover: #2d3139;
+  --border: #3a3f4b;
+  --border-light: #4a5060;
+  --border-strong: #7a7f8b;
+  --text-primary: #e8eaed;
+  --text-secondary: #9ca3af;
+  --text-muted: #6b7280;
+  --wire-accent: #b0b3b8;
+  --wire-dim: #7a7f8b;
+  --radius: 8px;
+  --font: 'Noto Sans SC', -apple-system, sans-serif;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { width: 100%; height: 100%; overflow: hidden; }
+body { font-family: var(--font); background: var(--bg-base); color: var(--text-primary); }
+
+.dag-container {
+  width: 100vw; height: 100vh;
+  background: #0a0c10; position: relative; overflow: hidden;
+  cursor: grab;
+}
+.dag-container.dragging { cursor: grabbing; }
+
+.dag-toolbar {
+  position: absolute; top: 12px; right: 12px; z-index: 10;
+  display: flex; gap: 4px;
+}
+.dag-tool-btn {
+  width: 36px; height: 36px; border-radius: 6px;
+  background: var(--bg-elevated); border: 1px solid var(--border);
+  color: var(--text-primary); cursor: pointer; font-size: 16px;
+  display: flex; align-items: center; justify-content: center;
+  transition: all 0.15s;
+}
+.dag-tool-btn:hover { background: var(--wire-accent); color: #000; }
+
+.dag-npc-selector {
+  position: absolute; top: 12px; left: 12px; z-index: 10;
+  display: flex; gap: 4px; background: var(--bg-elevated);
+  border: 1px solid var(--border); border-radius: 6px; padding: 4px;
+}
+.npc-btn {
+  background: none; border: none; color: var(--text-secondary);
+  padding: 6px 14px; border-radius: 4px; cursor: pointer;
+  font-family: var(--font); font-size: 12px; font-weight: 500;
+  transition: all 0.15s;
+}
+.npc-btn:hover { color: var(--text-primary); }
+.npc-btn.active { background: var(--wire-accent); color: #000; font-weight: 700; }
+.dag-selector-group { display: flex; align-items: center; gap: 3px; }
+.dag-selector-label { font-size: 10px; color: var(--text-muted); margin-right: 2px; text-transform: uppercase; letter-spacing: 0.5px; }
+.dag-selector-divider { width: 1px; height: 20px; background: var(--border); margin: 0 4px; }
+
+.dag-svg { width: 100%; height: 100%; }
+
+.dag-legend {
+  position: absolute; bottom: 12px; left: 12px; z-index: 10;
+  display: flex; gap: 14px; background: rgba(15,17,21,0.9);
+  border: 1px solid var(--border); border-radius: 6px; padding: 8px 14px;
+  flex-wrap: wrap;
+}
+.legend-item { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-secondary); }
+.legend-box { width: 16px; height: 12px; border-radius: 3px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; }
+
+.dag-info-panel {
+  position: absolute; bottom: 12px; right: 12px; z-index: 10;
+  background: rgba(15,17,21,0.95); border: 1px solid var(--border);
+  border-radius: 6px; padding: 14px; width: 280px;
+  display: none;
+}
+.dag-info-panel.show { display: block; }
+.dag-info-panel h4 { font-size: 14px; font-weight: 700; margin-bottom: 8px; }
+.dag-info-row { display: flex; justify-content: space-between; font-size: 12px; padding: 3px 0; }
+.dag-info-label { color: var(--text-muted); }
+.dag-info-value { color: var(--text-primary); }
+
+.node-group { cursor: pointer; transition: opacity 0.2s; }
+.node-group:hover .node-rect { stroke-width: 2.5; }
+.node-locked { cursor: not-allowed; opacity: 0.5; }
+.node-locked:hover .node-rect { stroke-width: 1; }
+.edge-path { fill: none; stroke: var(--border-strong); stroke-width: 2; }
+.edge-compressed { stroke-dasharray: 4 3; opacity: 0.4; }
+.node-selected .node-rect { stroke-width: 3 !important; filter: drop-shadow(0 0 6px var(--wire-accent)); }
+
+.dag-hint {
+  position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  z-index: 5; text-align: center; pointer-events: none;
+  color: var(--text-muted); font-size: 13px;
+  opacity: 0; transition: opacity 0.5s;
+}
+.dag-hint.show { opacity: 1; }
+</style>
+</head>
+<body>
+
+<div class="dag-container" id="dagContainer">
+  <div class="dag-npc-selector">
+    <div class="dag-selector-group">
+      <span class="dag-selector-label">NPC</span>
+      <button class="npc-btn active" data-npc="0">徐图</button>
+      <button class="npc-btn" data-npc="1">老赵</button>
+      <button class="npc-btn" data-npc="2">大女士</button>
+      <button class="npc-btn" data-npc="3">凝凝</button>
+    </div>
+    <div class="dag-selector-divider"></div>
+    <div class="dag-selector-group">
+      <span class="dag-selector-label">4条线同屏</span>
+      <span style="font-size:11px;color:var(--text-muted);padding:4px 8px;">线1-线4</span>
+    </div>
+  </div>
+  <div class="dag-toolbar">
+    <button class="dag-tool-btn" onclick="dagZoom(1.2)" title="放大">+</button>
+    <button class="dag-tool-btn" onclick="dagZoom(0.8)" title="缩小">−</button>
+    <button class="dag-tool-btn" onclick="dagFit()" title="适配到屏">⊡</button>
+    <button class="dag-tool-btn" onclick="dagReset()" title="重置">⟲</button>
+  </div>
+  <svg class="dag-svg" id="dagSvg" preserveAspectRatio="xMidYMid meet">
+    <defs>
+      <marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto" markerUnits="userSpaceOnUse">
+        <path d="M0,0 L0,6 L7,3 z" fill="#6b7280"/>
+      </marker>
+      <marker id="arrow-dim" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto" markerUnits="userSpaceOnUse">
+        <path d="M0,0 L0,6 L7,3 z" fill="#3a3f4b"/>
+      </marker>
+    </defs>
+    <g id="dagTransform" transform="translate(60, 30)">
+      <g id="dagEdges"></g>
+      <g id="dagNodes"></g>
+    </g>
+  </svg>
+  <div class="dag-legend">
+    <div class="legend-item"><div class="legend-box" style="border:1.5px solid #b0b3b8;background:#252830;">✓</div>已完成</div>
+    <div class="legend-item"><div class="legend-box" style="border:2.5px solid #e8eaed;background:#252830;">▶</div>进行中</div>
+    <div class="legend-item"><div class="legend-box" style="border:1.5px dashed #7a7f8b;background:#1a1d24;">○</div>可接取</div>
+    <div class="legend-item"><div class="legend-box" style="border:1px dotted #4a5060;background:#15171c;opacity:0.6;">?</div>未解锁</div>
+    <div class="legend-item" style="border-left:1px solid var(--border);padding-left:10px;">4层 × 4线同屏 · 60节点/NPC</div>
+  </div>
+  <div class="dag-info-panel" id="dagInfoPanel">
+    <h4 id="dagInfoTitle"></h4>
+    <div id="dagInfoBody"></div>
+  </div>
+  <div class="dag-hint" id="dagHint">拖动浏览 · 滚轮缩放 · 点击节点查看详情</div>
+</div>
+
+<div id="toast" style="position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:var(--bg-elevated);color:var(--text-primary);padding:10px 24px;border-radius:8px;border:1px solid var(--border);font-size:13px;z-index:1000;opacity:0;transition:opacity 0.3s;pointer-events:none;"></div>
+
+<script>
+// ===== TOAST =====
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.opacity = '1';
+  setTimeout(() => { t.style.opacity = '0'; }, 2500);
+}
+
+// ===== DAG: 4-layer binary tree, 4 lines, left-to-right =====
+const NPC_NAMES = ['徐图', '老赵', '大女士', '凝凝'];
+const TREE_DEPTH = 4;
+const LEAF_COUNT = Math.pow(2, TREE_DEPTH - 1); // 8
+const H_SPACING = 200;
+const V_SPACING = 50;
+const LINE_GAP = 40;
+const TREE_W = (TREE_DEPTH - 1) * H_SPACING; // 600
+const TREE_H = (LEAF_COUNT - 1) * V_SPACING; // 350
+const LINE_TOTAL_H = TREE_H + 60;
+const ALL_LINES_H = 4 * LINE_TOTAL_H + 3 * LINE_GAP;
+
+let currentNpc = 0;
+let dagScale = 1;
+let dagPanX = 0, dagPanY = 0;
+let selectedNode = null;
+
+const STATE_STYLES = {
+  completed: { fill: '#252830', stroke: '#b0b3b8', strokeWidth: 1.5, strokeDash: 'none', icon: '✓', label: '已完成', opacity: 1 },
+  inprogress: { fill: '#252830', stroke: '#e8eaed', strokeWidth: 2.5, strokeDash: 'none', icon: '▶', label: '进行中', opacity: 1 },
+  unlocked: { fill: '#1a1d24', stroke: '#7a7f8b', strokeWidth: 1.5, strokeDash: '5 3', icon: '○', label: '可接取', opacity: 1 },
+  locked: { fill: '#15171c', stroke: '#4a5060', strokeWidth: 1, strokeDash: '2 3', icon: '?', label: '未解锁', opacity: 0.5 },
+};
+
+function generateTreeData(npcIndex) {
+  const npcName = NPC_NAMES[npcIndex];
+  const nodes = [], edges = [];
+  const rewards = ['💰','🔫','💊','💎'];
+
+  for (let line = 0; line < 4; line++) {
+    const progressDepth = 5 - line;
+    const yOffset = line * (LINE_TOTAL_H + LINE_GAP);
+    const nodeMap = {};
+
+    for (let layer = 0; layer < TREE_DEPTH; layer++) {
+      const count = Math.pow(2, layer);
+      for (let i = 0; i < count; i++) {
+        const id = `n${line}_${layer}_${i}`;
+        let state;
+        if (layer < progressDepth - 2) state = 'completed';
+        else if (layer === progressDepth - 2) state = 'inprogress';
+        else if (layer === progressDepth - 1) state = 'unlocked';
+        else state = 'locked';
+        let name;
+        if (layer === 0) name = '起始任务';
+        else if (layer === 1) name = i === 0 ? '上侧分支' : '下侧分支';
+        else name = `L${layer+1}·${i+1}`;
+        const node = { id, name, layer, index: i, line, state, reward: rewards[layer], npc: npcName, x: 0, y: 0 };
+        nodeMap[`${layer}_${i}`] = node;
+        nodes.push(node);
+        if (layer < TREE_DEPTH - 1) {
+          edges.push({ from: id, to: `n${line}_${layer+1}_${i*2}` });
+          edges.push({ from: id, to: `n${line}_${layer+1}_${i*2+1}` });
+        }
+      }
+    }
+    for (let i = 0; i < LEAF_COUNT; i++) {
+      const n = nodeMap[`${TREE_DEPTH-1}_${i}`];
+      n.x = (TREE_DEPTH - 1) * H_SPACING;
+      n.y = yOffset + i * V_SPACING;
+    }
+    for (let layer = TREE_DEPTH - 2; layer >= 0; layer--) {
+      for (let i = 0; i < Math.pow(2, layer); i++) {
+        const n = nodeMap[`${layer}_${i}`];
+        n.x = layer * H_SPACING;
+        n.y = (nodeMap[`${layer+1}_${i*2}`].y + nodeMap[`${layer+1}_${i*2+1}`].y) / 2;
+      }
+    }
+  }
+  return { nodes, edges };
+}
+
+function getNodeSize(layer) {
+  const sizes = [
+    { w: 130, h: 50 },
+    { w: 130, h: 50 },
+    { w: 110, h: 44 },
+    { w: 100, h: 40 },
+  ];
+  return sizes[layer] || sizes[sizes.length - 1];
+}
+
+let currentTreeData = null;
+
+function renderDAG() {
+  currentTreeData = generateTreeData(currentNpc);
+  const data = currentTreeData;
+  const nodesG = document.getElementById('dagNodes');
+  const edgesG = document.getElementById('dagEdges');
+  nodesG.innerHTML = '';
+  edgesG.innerHTML = '';
+
+  const nodeMap = {};
+  data.nodes.forEach(n => { nodeMap[n.id] = n; });
+
+  // 画每条线的标签
+  for (let line = 0; line < 4; line++) {
+    const yOffset = line * (LINE_TOTAL_H + LINE_GAP);
+    const labelText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    labelText.setAttribute('x', -10);
+    labelText.setAttribute('y', yOffset + LINE_TOTAL_H / 2);
+    labelText.setAttribute('fill', '#9ca3af');
+    labelText.setAttribute('font-size', '14');
+    labelText.setAttribute('font-weight', '700');
+    labelText.setAttribute('text-anchor', 'end');
+    labelText.setAttribute('dominant-baseline', 'middle');
+    labelText.textContent = `线${line + 1}`;
+    edgesG.appendChild(labelText);
+
+    if (line < 3) {
+      const sepY = yOffset + LINE_TOTAL_H + LINE_GAP / 2;
+      const sepLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      sepLine.setAttribute('x1', -10);
+      sepLine.setAttribute('y1', sepY);
+      sepLine.setAttribute('x2', TREE_W + 140);
+      sepLine.setAttribute('y2', sepY);
+      sepLine.setAttribute('stroke', '#3a3f4b');
+      sepLine.setAttribute('stroke-width', '1');
+      sepLine.setAttribute('stroke-dasharray', '6 4');
+      edgesG.appendChild(sepLine);
+    }
+  }
+
+  // Draw edges
+  data.edges.forEach(edge => {
+    const fromNode = nodeMap[edge.from];
+    const toNode = nodeMap[edge.to];
+    if (!fromNode || !toNode) return;
+
+    const fromSize = getNodeSize(fromNode.layer);
+    const toSize = getNodeSize(toNode.layer);
+
+    const compressed = (fromNode.state === 'locked' || toNode.state === 'locked');
+    const compression = compressed ? 0.5 : 1;
+
+    const fromX = fromNode.x + fromSize.w / 2;
+    const fromY = fromNode.y;
+    const toX = toNode.x - toSize.w / 2;
+    const toY = fromNode.y + (toNode.y - fromNode.y) * compression;
+
+    const cpX1 = fromX + (toX - fromX) * 0.5;
+    const cpY1 = fromY;
+    const cpX2 = fromX + (toX - fromX) * 0.5;
+    const cpY2 = toY;
+
+    const path = `M ${fromX} ${fromY} C ${cpX1} ${cpY1}, ${cpX2} ${cpY2}, ${toX} ${toY}`;
+
+    let marker = 'arrow';
+    let edgeClass = 'edge-path';
+    if (compressed) {
+      edgeClass += ' edge-compressed';
+      marker = 'arrow-dim';
+    }
+
+    const pathEl = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    pathEl.setAttribute('d', path);
+    pathEl.setAttribute('class', edgeClass);
+    pathEl.setAttribute('marker-end', `url(#${marker})`);
+    pathEl.setAttribute('fill', 'none');
+    edgesG.appendChild(pathEl);
+  });
+
+  // Draw nodes
+  data.nodes.forEach(node => {
+    const size = getNodeSize(node.layer);
+    const style = STATE_STYLES[node.state];
+    const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    g.setAttribute('class', `node-group ${node.state === 'locked' ? 'node-locked' : ''} ${selectedNode === node.id ? 'node-selected' : ''}`);
+    g.setAttribute('transform', `translate(${node.x - size.w / 2}, ${node.y - size.h / 2})`);
+    g.style.opacity = style.opacity;
+
+    const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    rect.setAttribute('width', size.w);
+    rect.setAttribute('height', size.h);
+    rect.setAttribute('rx', 6);
+    rect.setAttribute('fill', style.fill);
+    rect.setAttribute('stroke', style.stroke);
+    rect.setAttribute('stroke-width', style.strokeWidth);
+    if (style.strokeDash !== 'none') {
+      rect.setAttribute('stroke-dasharray', style.strokeDash);
+    }
+    rect.setAttribute('class', 'node-rect');
+    g.appendChild(rect);
+
+    const iconText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    iconText.setAttribute('x', 10);
+    iconText.setAttribute('y', size.h * 0.55);
+    iconText.setAttribute('fill', style.stroke);
+    iconText.setAttribute('font-size', '13');
+    iconText.setAttribute('font-weight', '700');
+    iconText.textContent = style.icon;
+    g.appendChild(iconText);
+
+    const nameText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    nameText.setAttribute('x', 26);
+    nameText.setAttribute('y', size.h * 0.45);
+    nameText.setAttribute('fill', '#e8eaed');
+    nameText.setAttribute('font-size', '11');
+    nameText.setAttribute('font-weight', '600');
+    nameText.textContent = node.name.length > 7 ? node.name.substring(0, 7) + '…' : node.name;
+    g.appendChild(nameText);
+
+    const statusText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    statusText.setAttribute('x', 26);
+    statusText.setAttribute('y', size.h * 0.82);
+    statusText.setAttribute('fill', style.stroke);
+    statusText.setAttribute('font-size', '9');
+    statusText.textContent = style.label;
+    g.appendChild(statusText);
+
+    const rText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    rText.setAttribute('x', size.w - 8);
+    rText.setAttribute('y', size.h * 0.65);
+    rText.setAttribute('font-size', '14');
+    rText.setAttribute('text-anchor', 'end');
+    rText.textContent = node.reward;
+    g.appendChild(rText);
+
+    if (node.state === 'inprogress') {
+      const animRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+      animRect.setAttribute('width', size.w);
+      animRect.setAttribute('height', size.h);
+      animRect.setAttribute('rx', 6);
+      animRect.setAttribute('fill', 'none');
+      animRect.setAttribute('stroke', style.stroke);
+      animRect.setAttribute('stroke-width', 2);
+      animRect.setAttribute('opacity', '0.3');
+      animRect.innerHTML = '<animate attributeName="opacity" values="0.3;0.05;0.3" dur="2s" repeatCount="indefinite"/>';
+      g.appendChild(animRect);
+    }
+
+    g.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (node.state === 'locked') {
+        showToast('未解锁任务不可点击');
+        return;
+      }
+      selectDAGNode(node);
+    });
+
+    nodesG.appendChild(g);
+  });
+}
+
+function selectDAGNode(node) {
+  selectedNode = node.id;
+  renderDAG();
+  const panel = document.getElementById('dagInfoPanel');
+  const style = STATE_STYLES[node.state];
+  document.getElementById('dagInfoTitle').textContent = node.name;
+  document.getElementById('dagInfoTitle').style.color = style.stroke;
+  document.getElementById('dagInfoBody').innerHTML = `
+    <div class="dag-info-row"><span class="dag-info-label">状态</span><span class="dag-info-value" style="color:${style.stroke}">${style.icon} ${style.label}</span></div>
+    <div class="dag-info-row"><span class="dag-info-label">所属NPC</span><span class="dag-info-value">${node.npc}</span></div>
+    <div class="dag-info-row"><span class="dag-info-label">任务线</span><span class="dag-info-value">线${node.line + 1}</span></div>
+    <div class="dag-info-row"><span class="dag-info-label">层级</span><span class="dag-info-value">第${node.layer + 1}层 / 共${TREE_DEPTH}层</span></div>
+    <div class="dag-info-row"><span class="dag-info-label">分支序号</span><span class="dag-info-value">${node.index + 1} / ${Math.pow(2, node.layer)}</span></div>
+    <div class="dag-info-row"><span class="dag-info-label">高价值奖励</span><span class="dag-info-value">${node.reward}</span></div>
+    <div class="dag-info-row"><span class="dag-info-label">TaskID</span><span class="dag-info-value">${node.id}</span></div>
+    <div style="margin-top:10px;font-size:11px;color:var(--text-muted);border-top:1px solid var(--border);padding-top:8px;">
+      点击此节点将跳转至任务列表对应任务
+    </div>
+  `;
+  panel.classList.add('show');
+}
+
+// Pan & Zoom
+const dagContainer = document.getElementById('dagContainer');
+const dagTransform = document.getElementById('dagTransform');
+let isDragging = false;
+let dragStartX = 0, dragStartY = 0;
+let basePanX = 60, basePanY = 30;
+
+function updateDagTransform() {
+  dagTransform.setAttribute('transform', `translate(${basePanX + dagPanX}, ${basePanY + dagPanY}) scale(${dagScale})`);
+}
+
+dagContainer.addEventListener('mousedown', (e) => {
+  if (e.target.closest('.dag-tool-btn') || e.target.closest('.npc-btn') || e.target.closest('.dag-info-panel') || e.target.closest('.dag-selector-group')) return;
+  isDragging = true;
+  dragStartX = e.clientX - dagPanX;
+  dragStartY = e.clientY - dagPanY;
+  dagContainer.classList.add('dragging');
+});
+
+document.addEventListener('mousemove', (e) => {
+  if (!isDragging) return;
+  dagPanX = e.clientX - dragStartX;
+  dagPanY = e.clientY - dragStartY;
+  updateDagTransform();
+});
+
+document.addEventListener('mouseup', () => {
+  isDragging = false;
+  dagContainer.classList.remove('dragging');
+});
+
+dagContainer.addEventListener('wheel', (e) => {
+  e.preventDefault();
+  const delta = e.deltaY > 0 ? 0.9 : 1.1;
+  dagScale = Math.max(0.1, Math.min(4, dagScale * delta));
+  updateDagTransform();
+});
+
+// Touch support
+let touchStartDist = 0;
+let touchStartScale = 1;
+let touchStartX = 0, touchStartY = 0;
+
+dagContainer.addEventListener('touchstart', (e) => {
+  if (e.touches.length === 1) {
+    isDragging = true;
+    dragStartX = e.touches[0].clientX - dagPanX;
+    dragStartY = e.touches[0].clientY - dagPanY;
+  } else if (e.touches.length === 2) {
+    isDragging = false;
+    const dx = e.touches[0].clientX - e.touches[1].clientX;
+    const dy = e.touches[0].clientY - e.touches[1].clientY;
+    touchStartDist = Math.sqrt(dx * dx + dy * dy);
+    touchStartScale = dagScale;
+  }
+});
+
+dagContainer.addEventListener('touchmove', (e) => {
+  e.preventDefault();
+  if (e.touches.length === 1 && isDragging) {
+    dagPanX = e.touches[0].clientX - dragStartX;
+    dagPanY = e.touches[0].clientY - dragStartY;
+    updateDagTransform();
+  } else if (e.touches.length === 2) {
+    const dx = e.touches[0].clientX - e.touches[1].clientX;
+    const dy = e.touches[0].clientY - e.touches[1].clientY;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    dagScale = Math.max(0.1, Math.min(4, touchStartScale * (dist / touchStartDist)));
+    updateDagTransform();
+  }
+});
+
+dagContainer.addEventListener('touchend', () => {
+  isDragging = false;
+});
+
+function dagZoom(factor) {
+  dagScale = Math.max(0.1, Math.min(4, dagScale * factor));
+  updateDagTransform();
+}
+
+function dagFit() {
+  const containerWidth = dagContainer.clientWidth;
+  const containerHeight = dagContainer.clientHeight;
+  const treeFullW = TREE_W + 160;
+  const treeFullH = ALL_LINES_H + 60;
+  const scaleW = (containerWidth - 40) / treeFullW;
+  const scaleH = (containerHeight - 40) / treeFullH;
+  dagScale = Math.max(0.1, Math.min(1.5, Math.min(scaleW, scaleH)));
+  dagPanX = 0;
+  dagPanY = 0;
+  basePanX = 40;
+  basePanY = 20;
+  updateDagTransform();
+}
+
+function dagReset() {
+  dagScale = 1;
+  dagPanX = 0;
+  dagPanY = 0;
+  basePanX = 60;
+  basePanY = 30;
+  selectedNode = null;
+  document.getElementById('dagInfoPanel').classList.remove('show');
+  updateDagTransform();
+  renderDAG();
+}
+
+// NPC selector
+document.querySelectorAll('.npc-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.npc-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    currentNpc = parseInt(btn.dataset.npc);
+    selectedNode = null;
+    document.getElementById('dagInfoPanel').classList.remove('show');
+    renderDAG();
+  });
+});
+
+// Click empty area to deselect
+dagContainer.addEventListener('click', (e) => {
+  if (e.target === dagContainer || e.target.tagName === 'svg' || e.target.id === 'dagTransform') {
+    selectedNode = null;
+    document.getElementById('dagInfoPanel').classList.remove('show');
+    renderDAG();
+  }
+});
+
+// ===== INIT =====
+renderDAG();
+dagFit();
+
+// Show hint briefly
+const hint = document.getElementById('dagHint');
+hint.classList.add('show');
+setTimeout(() => hint.classList.remove('show'), 3500);
+</script>
+</body>
+</html>
