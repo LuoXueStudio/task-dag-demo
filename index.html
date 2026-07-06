@@ -7,18 +7,18 @@
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700;900&display=swap" rel="stylesheet">
 <style>
 :root {
-  --bg-base: #0f1115;
-  --bg-card: #1a1d24;
-  --bg-elevated: #252830;
-  --bg-hover: #2d3139;
-  --border: #3a3f4b;
-  --border-light: #4a5060;
-  --border-strong: #7a7f8b;
-  --text-primary: #e8eaed;
-  --text-secondary: #9ca3af;
-  --text-muted: #6b7280;
-  --wire-accent: #b0b3b8;
-  --wire-dim: #7a7f8b;
+  --bg-base: #ffffff;
+  --bg-card: #f5f5f5;
+  --bg-elevated: #e8e8e8;
+  --bg-hover: #d8d8d8;
+  --border: #ccc;
+  --border-light: #bbb;
+  --border-strong: #888;
+  --text-primary: #222;
+  --text-secondary: #555;
+  --text-muted: #999;
+  --wire-accent: #555;
+  --wire-dim: #888;
   --radius: 8px;
   --font: 'Noto Sans SC', -apple-system, sans-serif;
 }
@@ -28,14 +28,15 @@ body { font-family: var(--font); background: var(--bg-base); color: var(--text-p
 
 .dag-container {
   width: 100vw; height: 100vh;
-  background: #0a0c10; position: relative; overflow: hidden;
+  background: #fff; position: relative; overflow: hidden;
   cursor: grab;
 }
 .dag-container.dragging { cursor: grabbing; }
 
 .dag-toolbar {
-  position: absolute; top: 12px; right: 12px; z-index: 10;
-  display: flex; gap: 4px;
+  position: absolute; top: 50%; right: 12px; z-index: 10;
+  transform: translateY(-50%);
+  display: flex; flex-direction: column; gap: 4px;
 }
 .dag-tool-btn {
   width: 36px; height: 36px; border-radius: 6px;
@@ -44,39 +45,38 @@ body { font-family: var(--font); background: var(--bg-base); color: var(--text-p
   display: flex; align-items: center; justify-content: center;
   transition: all 0.15s;
 }
-.dag-tool-btn:hover { background: var(--wire-accent); color: #000; }
+.dag-tool-btn:hover { background: var(--wire-accent); color: #fff; }
 
 .dag-npc-selector {
-  position: absolute; top: 12px; left: 12px; z-index: 10;
-  display: flex; gap: 4px; background: var(--bg-elevated);
+  position: absolute; top: 50%; left: 12px; z-index: 10;
+  transform: translateY(-50%);
+  display: flex; flex-direction: column; gap: 4px; background: var(--bg-elevated);
   border: 1px solid var(--border); border-radius: 6px; padding: 4px;
 }
 .npc-btn {
-  background: none; border: none; color: var(--text-secondary);
-  padding: 6px 14px; border-radius: 4px; cursor: pointer;
-  font-family: var(--font); font-size: 12px; font-weight: 500;
+  background: none; border: 1px solid var(--border); color: var(--text-secondary);
+  width: 88px; height: 88px; border-radius: 8px; cursor: pointer;
+  font-family: var(--font); font-size: 16px; font-weight: 500;
+  display: flex; align-items: center; justify-content: center;
   transition: all 0.15s;
 }
 .npc-btn:hover { color: var(--text-primary); }
-.npc-btn.active { background: var(--wire-accent); color: #000; font-weight: 700; }
-.dag-selector-group { display: flex; align-items: center; gap: 3px; }
-.dag-selector-label { font-size: 10px; color: var(--text-muted); margin-right: 2px; text-transform: uppercase; letter-spacing: 0.5px; }
-.dag-selector-divider { width: 1px; height: 20px; background: var(--border); margin: 0 4px; }
+.npc-btn.active { background: var(--wire-accent); color: #fff; font-weight: 700; }
 
 .dag-svg { width: 100%; height: 100%; }
 
 .dag-legend {
   position: absolute; bottom: 12px; left: 12px; z-index: 10;
-  display: flex; gap: 14px; background: rgba(15,17,21,0.9);
+  display: flex; gap: 14px; background: rgba(255,255,255,0.9);
   border: 1px solid var(--border); border-radius: 6px; padding: 8px 14px;
   flex-wrap: wrap;
 }
 .legend-item { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-secondary); }
-.legend-box { width: 16px; height: 12px; border-radius: 3px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; }
+.legend-box { width: 16px; height: 16px; border-radius: 3px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; }
 
 .dag-info-panel {
   position: absolute; bottom: 12px; right: 12px; z-index: 10;
-  background: rgba(15,17,21,0.95); border: 1px solid var(--border);
+  background: rgba(255,255,255,0.95); border: 1px solid var(--border);
   border-radius: 6px; padding: 14px; width: 280px;
   display: none;
 }
@@ -88,11 +88,18 @@ body { font-family: var(--font); background: var(--bg-base); color: var(--text-p
 
 .node-group { cursor: pointer; transition: opacity 0.2s; }
 .node-group:hover .node-rect { stroke-width: 2.5; }
-.node-locked { cursor: not-allowed; opacity: 0.5; }
+.node-locked { cursor: not-allowed; opacity: 0.4; }
 .node-locked:hover .node-rect { stroke-width: 1; }
 .edge-path { fill: none; stroke: var(--border-strong); stroke-width: 2; }
 .edge-compressed { stroke-dasharray: 4 3; opacity: 0.4; }
-.node-selected .node-rect { stroke-width: 3 !important; filter: drop-shadow(0 0 6px var(--wire-accent)); }
+.node-selected .node-rect { stroke-width: 3 !important; filter: drop-shadow(0 0 6px rgba(0,0,0,0.3)); }
+
+.dag-scale-display {
+  position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
+  z-index: 10; background: var(--bg-elevated); border: 1px solid var(--border);
+  border-radius: 6px; padding: 4px 12px; font-size: 12px; color: var(--text-secondary);
+  font-family: monospace;
+}
 
 .dag-hint {
   position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
@@ -118,13 +125,14 @@ body { font-family: var(--font); background: var(--bg-base); color: var(--text-p
     <button class="dag-tool-btn" onclick="dagFit()" title="适配到屏">⊡</button>
     <button class="dag-tool-btn" onclick="dagReset()" title="重置">⟲</button>
   </div>
+  <div class="dag-scale-display" id="scaleDisplay">scale: 1.00</div>
   <svg class="dag-svg" id="dagSvg" preserveAspectRatio="xMidYMid meet">
     <defs>
       <marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto" markerUnits="userSpaceOnUse">
-        <path d="M0,0 L0,6 L7,3 z" fill="#6b7280"/>
+        <path d="M0,0 L0,6 L7,3 z" fill="#888"/>
       </marker>
       <marker id="arrow-dim" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto" markerUnits="userSpaceOnUse">
-        <path d="M0,0 L0,6 L7,3 z" fill="#3a3f4b"/>
+        <path d="M0,0 L0,6 L7,3 z" fill="#ccc"/>
       </marker>
     </defs>
     <g id="dagTransform" transform="translate(60, 30)">
@@ -133,10 +141,10 @@ body { font-family: var(--font); background: var(--bg-base); color: var(--text-p
     </g>
   </svg>
   <div class="dag-legend">
-    <div class="legend-item"><div class="legend-box" style="border:1.5px solid #b0b3b8;background:#252830;">✓</div>已完成</div>
-    <div class="legend-item"><div class="legend-box" style="border:2.5px solid #e8eaed;background:#252830;">▶</div>进行中</div>
-    <div class="legend-item"><div class="legend-box" style="border:1.5px dashed #7a7f8b;background:#1a1d24;">○</div>可接取</div>
-    <div class="legend-item"><div class="legend-box" style="border:1px dotted #4a5060;background:#15171c;opacity:0.6;">?</div>未解锁</div>
+    <div class="legend-item"><div class="legend-box" style="border:1.5px solid #555;background:#f5f5f5;">✓</div>已完成</div>
+    <div class="legend-item"><div class="legend-box" style="border:2.5px solid #222;background:#f5f5f5;">▶</div>进行中</div>
+    <div class="legend-item"><div class="legend-box" style="border:1.5px dashed #888;background:#f5f5f5;">○</div>可接取</div>
+    <div class="legend-item"><div class="legend-box" style="border:1px dotted #999;background:#f5f5f5;opacity:0.5;">?</div>未解锁</div>
   </div>
   <div class="dag-info-panel" id="dagInfoPanel">
     <h4 id="dagInfoTitle"></h4>
@@ -169,15 +177,18 @@ const LINE_TOTAL_H = TREE_H + 60;
 const ALL_LINES_H = 4 * LINE_TOTAL_H + 3 * LINE_GAP;
 
 let currentNpc = 0;
-let dagScale = 1;
+let dagScale = 1.8;
+const MIN_SCALE = 1;
+const MAX_SCALE = 3;
+const DEFAULT_SCALE = 1.8;
 let dagPanX = 0, dagPanY = 0;
 let selectedNode = null;
 
 const STATE_STYLES = {
-  completed: { fill: '#252830', stroke: '#b0b3b8', strokeWidth: 1.5, strokeDash: 'none', icon: '✓', label: '已完成', opacity: 1 },
-  inprogress: { fill: '#252830', stroke: '#e8eaed', strokeWidth: 2.5, strokeDash: 'none', icon: '▶', label: '进行中', opacity: 1 },
-  unlocked: { fill: '#1a1d24', stroke: '#7a7f8b', strokeWidth: 1.5, strokeDash: '5 3', icon: '○', label: '可接取', opacity: 1 },
-  locked: { fill: '#15171c', stroke: '#4a5060', strokeWidth: 1, strokeDash: '2 3', icon: '?', label: '未解锁', opacity: 0.5 },
+  completed: { fill: '#f5f5f5', stroke: '#555', strokeWidth: 1.5, strokeDash: 'none', icon: '✓', label: '已完成', opacity: 1 },
+  inprogress: { fill: '#f5f5f5', stroke: '#222', strokeWidth: 2.5, strokeDash: 'none', icon: '▶', label: '进行中', opacity: 1 },
+  unlocked: { fill: '#f5f5f5', stroke: '#888', strokeWidth: 1.5, strokeDash: '5 3', icon: '○', label: '可接取', opacity: 1 },
+  locked: { fill: '#f5f5f5', stroke: '#bbb', strokeWidth: 1, strokeDash: '2 3', icon: '?', label: '未解锁', opacity: 0.4 },
 };
 
 function generateTreeData(npcIndex) {
@@ -251,34 +262,6 @@ function renderDAG() {
   const nodeMap = {};
   data.nodes.forEach(n => { nodeMap[n.id] = n; });
 
-  // 画每条线的标签
-  for (let line = 0; line < 4; line++) {
-    const yOffset = line * (LINE_TOTAL_H + LINE_GAP);
-    const labelText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-    labelText.setAttribute('x', -10);
-    labelText.setAttribute('y', yOffset + LINE_TOTAL_H / 2);
-    labelText.setAttribute('fill', '#9ca3af');
-    labelText.setAttribute('font-size', '14');
-    labelText.setAttribute('font-weight', '700');
-    labelText.setAttribute('text-anchor', 'end');
-    labelText.setAttribute('dominant-baseline', 'middle');
-    labelText.textContent = `线${line + 1}`;
-    edgesG.appendChild(labelText);
-
-    if (line < 3) {
-      const sepY = yOffset + LINE_TOTAL_H + LINE_GAP / 2;
-      const sepLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-      sepLine.setAttribute('x1', -10);
-      sepLine.setAttribute('y1', sepY);
-      sepLine.setAttribute('x2', TREE_W + 140);
-      sepLine.setAttribute('y2', sepY);
-      sepLine.setAttribute('stroke', '#3a3f4b');
-      sepLine.setAttribute('stroke-width', '1');
-      sepLine.setAttribute('stroke-dasharray', '6 4');
-      edgesG.appendChild(sepLine);
-    }
-  }
-
   // Draw edges
   data.edges.forEach(edge => {
     const fromNode = nodeMap[edge.from];
@@ -287,13 +270,16 @@ function renderDAG() {
 
     const fromSize = getNodeSize(fromNode.layer);
     const toSize = getNodeSize(toNode.layer);
+    // locked节点是小方框，尺寸用28
+    const fromW = fromNode.state === 'locked' ? 28 : fromSize.w;
+    const toW = toNode.state === 'locked' ? 28 : toSize.w;
 
     const compressed = (fromNode.state === 'locked' || toNode.state === 'locked');
     const compression = compressed ? 0.5 : 1;
 
-    const fromX = fromNode.x + fromSize.w / 2;
+    const fromX = fromNode.x + fromW / 2;
     const fromY = fromNode.y;
-    const toX = toNode.x - toSize.w / 2;
+    const toX = toNode.x - toW / 2;
     const toY = fromNode.y + (toNode.y - fromNode.y) * compression;
 
     const cpX1 = fromX + (toX - fromX) * 0.5;
@@ -324,6 +310,42 @@ function renderDAG() {
     const style = STATE_STYLES[node.state];
     const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
     g.setAttribute('class', `node-group ${node.state === 'locked' ? 'node-locked' : ''} ${selectedNode === node.id ? 'node-selected' : ''}`);
+
+    if (node.state === 'locked') {
+      // 未解锁：小方框 + ?
+      const lockSize = 28;
+      g.setAttribute('transform', `translate(${node.x - lockSize / 2}, ${node.y - lockSize / 2})`);
+      g.style.opacity = style.opacity;
+
+      const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+      rect.setAttribute('width', lockSize);
+      rect.setAttribute('height', lockSize);
+      rect.setAttribute('rx', 3);
+      rect.setAttribute('fill', style.fill);
+      rect.setAttribute('stroke', style.stroke);
+      rect.setAttribute('stroke-width', 1);
+      rect.setAttribute('stroke-dasharray', '2 3');
+      rect.setAttribute('class', 'node-rect');
+      g.appendChild(rect);
+
+      const qText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      qText.setAttribute('x', lockSize / 2);
+      qText.setAttribute('y', lockSize * 0.68);
+      qText.setAttribute('fill', style.stroke);
+      qText.setAttribute('font-size', '14');
+      qText.setAttribute('font-weight', '700');
+      qText.setAttribute('text-anchor', 'middle');
+      qText.textContent = '?';
+      g.appendChild(qText);
+
+      g.addEventListener('click', (e) => {
+        e.stopPropagation();
+        showToast('未解锁任务不可点击');
+      });
+      nodesG.appendChild(g);
+      return;
+    }
+
     g.setAttribute('transform', `translate(${node.x - size.w / 2}, ${node.y - size.h / 2})`);
     g.style.opacity = style.opacity;
 
@@ -352,7 +374,7 @@ function renderDAG() {
     const nameText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
     nameText.setAttribute('x', 26);
     nameText.setAttribute('y', size.h * 0.45);
-    nameText.setAttribute('fill', '#e8eaed');
+    nameText.setAttribute('fill', '#222');
     nameText.setAttribute('font-size', '11');
     nameText.setAttribute('font-weight', '600');
     nameText.textContent = node.name.length > 7 ? node.name.substring(0, 7) + '…' : node.name;
@@ -389,10 +411,6 @@ function renderDAG() {
 
     g.addEventListener('click', (e) => {
       e.stopPropagation();
-      if (node.state === 'locked') {
-        showToast('未解锁任务不可点击');
-        return;
-      }
       selectDAGNode(node);
     });
 
@@ -425,28 +443,48 @@ function selectDAGNode(node) {
 // Pan & Zoom
 const dagContainer = document.getElementById('dagContainer');
 const dagTransform = document.getElementById('dagTransform');
+const scaleDisplay = document.getElementById('scaleDisplay');
 let isDragging = false;
 let dragStartX = 0, dragStartY = 0;
-let basePanX = 80, basePanY = 40;
+let basePanX = 0, basePanY = 0;
 
-const MIN_SCALE = 0.5;
-const MAX_SCALE = 2.0;
-const PAN_MARGIN = 300;
+function updateScaleDisplay() {
+  scaleDisplay.textContent = `scale: ${dagScale.toFixed(2)}`;
+}
+
+function computeBasePan() {
+  const cw = window.innerWidth;
+  const ch = window.innerHeight;
+  // 线1根节点 y = (0 + (LEAF_COUNT-1)*V_SPACING) / 2
+  const rootY = (LEAF_COUNT - 1) * V_SPACING / 2;
+  basePanX = cw * 0.25;
+  basePanY = ch * 0.5 - rootY * dagScale;
+}
 
 function clampPan() {
-  const cw = dagContainer.clientWidth;
-  const ch = dagContainer.clientHeight;
-  const treeW = (TREE_W + 140) * dagScale;
-  const treeH = (ALL_LINES_H + 60) * dagScale;
-  const maxX = Math.max(0, (treeW - cw) / 2 + PAN_MARGIN);
-  const maxY = Math.max(0, (treeH - ch) / 2 + PAN_MARGIN);
-  dagPanX = Math.max(-maxX, Math.min(maxX, dagPanX));
-  dagPanY = Math.max(-maxY, Math.min(maxY, dagPanY));
+  const cw = window.innerWidth;
+  const ch = window.innerHeight;
+  const halfW = cw * 0.5;
+  const halfH = ch * 0.5;
+  // 树边界（SVG坐标，含节点尺寸）
+  const treeLeft = -65;
+  const treeRight = TREE_W + 50;
+  const treeTop = -30;
+  const treeBottom = ALL_LINES_H + 30;
+  // 上界：往上最多滑半屏
+  const maxPanX = halfW;
+  const maxPanY = halfH;
+  // 下界：往下最多滑半屏，或滑到树底+半屏（取更远的）
+  const minPanX = Math.min(-halfW, cw + halfW - basePanX - treeRight * dagScale);
+  const minPanY = Math.min(-halfH, ch + halfH - basePanY - treeBottom * dagScale);
+  dagPanX = Math.max(minPanX, Math.min(maxPanX, dagPanX));
+  dagPanY = Math.max(minPanY, Math.min(maxPanY, dagPanY));
 }
 
 function updateDagTransform() {
   clampPan();
   dagTransform.setAttribute('transform', `translate(${basePanX + dagPanX}, ${basePanY + dagPanY}) scale(${dagScale})`);
+  updateScaleDisplay();
 }
 
 dagContainer.addEventListener('mousedown', (e) => {
@@ -520,26 +558,17 @@ function dagZoom(factor) {
 }
 
 function dagFit() {
-  const containerWidth = dagContainer.clientWidth;
-  const containerHeight = dagContainer.clientHeight;
-  const treeFullW = TREE_W + 160;
-  const treeFullH = ALL_LINES_H + 60;
-  const scaleW = (containerWidth - 40) / treeFullW;
-  const scaleH = (containerHeight - 40) / treeFullH;
-  dagScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, Math.min(scaleW, scaleH)));
   dagPanX = 0;
   dagPanY = 0;
-  basePanX = 80;
-  basePanY = 40;
+  computeBasePan();
   updateDagTransform();
 }
 
 function dagReset() {
-  dagScale = 1;
+  dagScale = DEFAULT_SCALE;
   dagPanX = 0;
   dagPanY = 0;
-  basePanX = 80;
-  basePanY = 40;
+  computeBasePan();
   selectedNode = null;
   document.getElementById('dagInfoPanel').classList.remove('show');
   updateDagTransform();
@@ -569,12 +598,10 @@ dagContainer.addEventListener('click', (e) => {
 
 // ===== INIT =====
 renderDAG();
-dagFit();
-
-// Show hint briefly
-const hint = document.getElementById('dagHint');
-hint.classList.add('show');
-setTimeout(() => hint.classList.remove('show'), 3500);
+window.addEventListener('load', () => {
+  computeBasePan();
+  updateDagTransform();
+});
 </script>
 </body>
 </html>
